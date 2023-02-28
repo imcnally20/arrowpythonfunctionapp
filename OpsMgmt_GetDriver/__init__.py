@@ -55,6 +55,7 @@ def main(mytimer: func.TimerRequest) -> None:
     # # Define the entity properties
     pk = "Last Updated Date"
     rk = "db-opsmgmt.workforce.personnel"
+    # last_personnel_timestamp, last_details_timestamp, last_update_timestamp = "", "", ""
     last_personnel_timestamp, last_details_timestamp = "", ""
     value, details_value = "",""
     records = Entity()
@@ -62,6 +63,7 @@ def main(mytimer: func.TimerRequest) -> None:
     records.RowKey = rk
     records.last_personnel_timestamp = last_personnel_timestamp
     records.last_details_timestamp = last_details_timestamp
+    # records.last_update_timestamp = last_update_timestamp
 
     ## Retrieve last lsn from azure table
     # table_service = TableService(connection_string='<storage_account_connection_string>')
@@ -99,14 +101,17 @@ def main(mytimer: func.TimerRequest) -> None:
         # We're forcing the timestamp into a 16-digit hex string here,
         # since fetching the data raw saves it as a System.Byte[].
         # Also to ensure data consistency.
+        # logging.info("0x{:016X}".format(int(last_personnel_timestamp_cmd.execute_scalar())))
         last_personnel_timestamp = "0x{:016X}".format(last_personnel_timestamp_cmd.fetchone()[0])
+        # last_personnel_timestamp = "0x{:016X}".format(int(last_personnel_timestamp_cmd.execute_scalar()))
+
     except:
         logging.error("Failed in query/conversion from personel opsmgmt timestamp close db connection")
         ops_conn.close()
         return
     
     # logging.info(f"Last personnel timestamp in normal format: {datetime.datetime.fromtimestamp(last_personnel_timestamp_cmd.fetchone()[0]).strftime('%Y-%m-%d %H:%M:%S')}")
-
+    # logging.info("0x{:016X}".format(last_personnel_timestamp_cmd.fetchone()[0]))
 
     try:
         # details
@@ -124,7 +129,7 @@ def main(mytimer: func.TimerRequest) -> None:
         last_details_timestamp_cmd.execute(latest_details_update_query)
     
         # logging.info(str(last_personnel_timestamp_cmd.fetchone()[0]))
-        logging.info(f"Last details timestamp in normal format: {datetime.datetime.fromtimestamp(last_details_timestamp_cmd.fetchone()[0]).strftime('%Y-%m-%d %H:%M:%S')}")
+        # logging.info(f"Last details timestamp in normal format: {datetime.datetime.fromtimestamp(last_details_timestamp_cmd.fetchone()[0]).strftime('%Y-%m-%d %H:%M:%S')}")
         # we're forcing the timestamp into a 16-digit hex string here,
         # since fetching the data raw saves it as a System.Byte[].
         # Also to ensure data consistency.
@@ -166,6 +171,7 @@ def main(mytimer: func.TimerRequest) -> None:
     if value != last_personnel_timestamp or details_value != last_details_timestamp:
         personnel_last_run = retrieved_result.last_personnel_timestamp
         details_last_run = retrieved_result.last_details_timestamp
+        # ops_conn = pyodbc.connect(ops_conn_str)
 
         ops_driver_changes_query = (
             "SELECT "
@@ -194,11 +200,24 @@ def main(mytimer: func.TimerRequest) -> None:
 
         ops_driver_change_transactions = []
         try:
+            # rows = []
             driver_changes = ops_conn.cursor()
             driver_changes.execute(ops_driver_changes_query)
             # driver_changes = await ops_conn.QueryAsync<OpsDriverTransactions>(ops_driver_changes_query)
             # ops_driver_change_transactions = driver_changes if isinstance(driver_changes, list) else driver_changes.tolist()
-            ops_driver_change_transactions = driver_changes.fetchall() if isinstance(driver_changes.fetchall(), list) else driver_changes.fetchall().to_list()
+            # rows.append(driver_changes.fetchall())
+            # logging.info(rows)
+            # using list comprehension to append instances to list
+            # rows = driver_changes.fetchall()
+            
+            for driver in driver_changes.fetchall():
+                ops_driver_transactions = OpsDriverTransactions(driver[0],driver[1],driver[2],driver[3],driver[4],driver[5],driver[6],driver[7],driver[8],driver[9],driver[10],driver[11],driver[12],driver[13])
+                ops_driver_change_transactions.append(ops_driver_transactions)
+
+            # if rows != None:
+                # ops_driver_change_transactions += [OpsDriverTransactions(ops_driver_id, homedivn, firstname, lastname, division_id, division_name, inactiveFlag, timestamp, driverEmailMobile, dtype, pin, driverLicenseNo, countryCode, licenseIssuingState) for ops_driver_id, homedivn, firstname, lastname, division_id, division_name, inactiveFlag, timestamp, driverEmailMobile, dtype, pin, driverLicenseNo, countryCode, licenseIssuingState in rows]
+            # ops_driver_change_transactions += [OpsDriverTransactions(ops_driver_id, homedivn, firstname, lastname, division_id, division_name, inactiveFlag, timestamp, driverEmailMobile, dtype, pin, driverLicenseNo, countryCode, licenseIssuingState) for ops_driver_id, homedivn, firstname, lastname, division_id, division_name, inactiveFlag, timestamp, driverEmailMobile, dtype, pin, driverLicenseNo, countryCode, licenseIssuingState in driver_changes.fetchall() if isinstance(driver_changes.fetchall(), list) else driver_changes.fetchall().to_list()]]
+            # ops_driver_change_transactions = driver_changes.fetchall() if isinstance(driver_changes.fetchall(), list) else driver_changes.fetchall().to_list()
 
 
         except Exception as e:
@@ -222,6 +241,7 @@ def main(mytimer: func.TimerRequest) -> None:
             raise
 
         logging.warning(f"Personnel changes found: {len(ops_driver_change_transactions)}")
+        logging.info(ops_driver_change_transactions)
 
         records.last_personnel_timestamp = last_personnel_timestamp
         records.last_details_timestamp = last_details_timestamp
