@@ -8,23 +8,107 @@ import pyodbc
 import json
 import datetime
 import logging
+import asyncio
+
+async def send_message_to_topic(ops_driver_change_transactions):
+    servicebus_connection_string = os.environ['AzureServiceBus']
+    topic_name = "nav2driverintegration"
+    ops_driver_change_dict = [driver.to_dict() for driver in ops_driver_change_transactions]
+    # ops_driver_change_transactions = {"key": "value"}  # replace this with your own data
+
+
+                # for driver_dict in ops_driver_change_dict:
+                #     message_body = json.dumps(driver_dict)
+                #     message = ServiceBusMessage(message_body)
+                #     message.user_properties = {"Data": message_body}
+                #     await topic_sender.send_messages(message)
+    try:
+        logging.info("Create context for asynchronous resources...")
+        logging.info(type(json.dumps(ops_driver_change_dict)))
+        servicebus_client = ServiceBusClient.from_connection_string(servicebus_connection_string)
+        topic_sender = servicebus_client.get_topic_sender(topic_name)
+
+        for driver_dict in ops_driver_change_dict:
+            message_body = json.dumps(driver_dict)
+            message = ServiceBusMessage(message_body)
+            message.user_properties = {"Data": message_body}
+            if message is not None:
+                topic_sender.send_messages(message)
+
+        # topic_sender = servicebus_client.get_topic_sender(topic_name)
+        # message_body = json.dumps(ops_driver_change_dict)
+        # message = ServiceBusMessage(message_body)
+        # message.user_properties = {"Data": message_body}
+        # if message is not None:
+        #     # await topic_sender.SendAsync(message)
+        #     await send_message_to_topic(message)
+
+        # await topic_sender.send_messages(message)
+        logging.info("Completed sending message to service bus.")
+
+        # async with ServiceBusClient.from_connection_string(servicebus_connection_string) as servicebus_client:
+        #     async with servicebus_client.get_topic_sender(topic_name) as topic_sender:
+        #         message_body = json.dumps(ops_driver_change_dict)
+        #         message = ServiceBusMessage(message_body)
+        #         message.user_properties = {"Data": message_body}
+        #         # message = ServiceBusMessage()
+        #         # message.user_properties = {"Data": json.dumps(ops_driver_change_dict)}
+        #         await topic_sender.send_messages(message)
+        #         logging.info("Completed sending message to service bus.")
+    except Exception as e:
+        logging.error(f"Sending message to service bus failed: {e}")
+        raise
 
 class OpsDriverTransactions:
-    def __init__(self, ops_driver_id, homedivn, firstname, lastname, division_id, division_name, inactiveFlag, timestamp, driverEmailMobile, dtype, pin, driverLicenseNo, countryCode, licenseIssuingState):
+    def __init__(self
+                ,ops_driver_id
+                ,lastName
+                ,firstName
+                ,division_id
+                ,homedivn
+                ,pin
+                ,dtype
+                ,driverLicenseNo
+                ,countryCode
+                ,licenseIssuingState
+                # ,company
+                ,division_name
+                ,inactiveFlag
+                ,driverEmailMobile 
+                ):
+
         self.ops_driver_id = ops_driver_id
         self.homedivn = homedivn
-        self.firstname = firstname
-        self.lastname = lastname
+        self.firstName = firstName
+        self.lastName = lastName
         self.division_id = division_id
         self.division_name = division_name
         self.inactiveFlag = inactiveFlag
-        self.timestamp = timestamp
+        # self.timestamp = timestamp
         self.driverEmailMobile = driverEmailMobile
         self.dtype = dtype
         self.pin = pin
         self.driverLicenseNo = driverLicenseNo
         self.countryCode = countryCode
         self.licenseIssuingState = licenseIssuingState
+
+    def to_dict(self):
+        return {
+            "ops_driver_id": self.ops_driver_id,
+            "lastName": self.lastName,
+            "firstName": self.firstName,
+            "division_id": self.division_id,
+            "homedivn": self.homedivn,
+            "pin": self.pin,
+            "dtype": self.dtype,
+            "driverLicenseNo": self.driverLicenseNo,
+            "countryCode": self.countryCode,
+            "licenseIssuingState": self.licenseIssuingState,
+            # "company": self.company,
+            "division_name": self.division_name,
+            "inactiveFlag": self.inactiveFlag,
+            "driverEmailMobile": self.driverEmailMobile,
+        }
 
 # class LastDriverLUpdatedTime:
 #     def __init__(self, pkey, rkey, last_details_timestamp, last_updated_timestamp):
@@ -33,7 +117,7 @@ class OpsDriverTransactions:
 #         self.last_details_timestamp = last_details_timestamp
 #         self.last_updated_timestamp = last_updated_timestamp
 
-def main(mytimer: func.TimerRequest) -> None:
+async def main(mytimer: func.TimerRequest) -> None:
     utc_timestamp = datetime.datetime.utcnow().replace(
         tzinfo=datetime.timezone.utc).isoformat()
 
@@ -209,9 +293,43 @@ def main(mytimer: func.TimerRequest) -> None:
             # logging.info(rows)
             # using list comprehension to append instances to list
             # rows = driver_changes.fetchall()
+
+            # row = driver_changes.fetchone()
+            # while row:
+            #     ops_driver_transactions = OpsDriverTransactions(row.ops_driver_id
+            #                                     ,row.homedivn
+            #                                     ,row.firstname
+            #                                     ,row.lastname
+            #                                     ,row.division_id
+            #                                     ,row.division_name
+            #                                     ,row.inactiveFlag
+            #                                     ,row.timestamp
+            #                                     ,row.driverEmailMobile
+            #                                     ,row.dtype
+            #                                     ,row.pin
+            #                                     ,row.driverLicenseNo
+            #                                     ,row.countryCode
+            #                                     ,row.licenseIssuingState)
+            #     ops_driver_change_transactions.append(ops_driver_transactions)
+            #     row = driver_changes.fetchone()
             
             for driver in driver_changes.fetchall():
-                ops_driver_transactions = OpsDriverTransactions(driver[0],driver[1],driver[2],driver[3],driver[4],driver[5],driver[6],driver[7],driver[8],driver[9],driver[10],driver[11],driver[12],driver[13])
+                # ops_driver_transactions = OpsDriverTransactions(driver[0],driver[1],driver[2],driver[3],driver[4],driver[5],driver[6],driver[7],driver[8],driver[9],driver[10],driver[11],driver[12],driver[13])
+                ops_driver_transactions = OpsDriverTransactions(driver.ops_driver_id
+                                                                ,driver.lastName
+                                                                ,driver.firstName
+                                                                ,driver.division_id
+                                                                ,driver.homedivn
+                                                                ,driver.pin
+                                                                ,driver.dtype
+                                                                ,driver.driverLicenseNo
+                                                                ,driver.countryCode
+                                                                ,driver.licenseIssuingState
+                                                                # ,driver.company
+                                                                ,driver.division_name
+                                                                ,driver.inactiveFlag
+                                                                ,driver.driverEmailMobile                                                           
+                                                                )
                 ops_driver_change_transactions.append(ops_driver_transactions)
 
             # if rows != None:
@@ -259,7 +377,61 @@ def main(mytimer: func.TimerRequest) -> None:
 
     ops_conn.close()
 
-    # logging.info(f"Last run timestamp: {last_personnel_timestamp}")
+
+    # #############################################################
+
+    if ops_driver_change_transactions:
+        try:
+            # await send_message_to_topic()
+            logging.info("Attempting to send message to service bus...")
+            # loop = asyncio.new_event_loop()
+            # asyncio.set_event_loop(loop)
+            # loop.run_until_complete(send_message_to_topic(ops_driver_change_transactions))
+            # loop.close()
+            # asyncio.run(send_message_to_topic(ops_driver_change_transactions))
+            await send_message_to_topic(ops_driver_change_transactions)
+            logging.info("Message successfully sent to service bus.")
+        except Exception as e:
+            logging.error("Sending message to service bus failed:"+ str(e))
+            # loop.close()
+
+if __name__ == "__main__":
+    asyncio.run(main(func.TimerRequest("Timer", None)))
+
+# if __name__ == "__main__":
+#     # Call the async function using asyncio.run()
+#     asyncio.run(main(None))
+
+
+    #     try:
+    #         # Send messages to service bus
+    #         logger = logging.getLogger('azure')
+    #         sb_client = ServiceBusClient.from_connection_string(sb_connection_str, logger=logger)
+    #         # topic_sender = topic_client.get_topic_sender(sb_topic_name)
+    #         topic_client = sb_client.get_topic(sb_topic_name)
+
+    #         message = ServiceBusMessage()
+    #         message.user_properties = {'Data': json.dumps(ops_driver_change_transactions)}
+
+    #         logging.warning("Attempting to send data to the Service Bus: ")
+    #         await topic_client.send_messages(message)
+
+    #         logging.info("Message sent successfully.")
+    #         logging.info(f"Message sent to topic driverintegration:\n {json.dumps(ops_driver_change_transactions)}")
+
+    #         await topic_client.close()
+
+    #         logging.info(f"Last updated date value inserted in Azure Table Storage: {last_personnel_timestamp}")#should actually use timestamp in azure storage table
+
+    #     except Exception as e:
+    #         logging.error("Could not send message to Service Bus:", exc_info=True)
+    #         raise
+
+    # else:
+    #     logging.info("No changes available in the workforce.personnelDetails table.")
+
+
+    # # logging.info(f"Last run timestamp: {last_personnel_timestamp}")
 
     # # If last lsn value is available
     # if retrieved_result:
